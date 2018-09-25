@@ -23,6 +23,9 @@
 # \e[K  => clears everything after the cursor on the current line
 # \e[2K => clear everything on the current line
 
+PROMPT_PURE_GCLOUD_SYMBOL=${PROMPT_PURE_GCLOUD_SYMBOL="G‧☁ "}
+PROMPT_PURE_GCLOUD_SYMBOL_COLOR=${PROMPT_PURE_GCLOUD_SYMBOL_COLOR="blue"}
+
 
 # turns seconds into human readable time
 # 165392 => 1d 21h 56m 32s
@@ -140,6 +143,9 @@ prompt_pure_preprompt_render() {
 		cleaned_ps1=${PROMPT##*${prompt_newline}}
 	fi
 	unset MATCH MBEGIN MEND
+
+	# append gcloud config info
+	[[ -n $prompt_pure_gcloud_config_info ]] && preprompt_parts+=('$prompt_pure_gcloud_config_info')
 
 	# Construct the new prompt with a clean preprompt.
 	local -ah ps1
@@ -335,6 +341,7 @@ prompt_pure_async_tasks() {
 	unset MATCH MBEGIN MEND
 
 	async_job "prompt_pure" prompt_pure_async_vcs_info
+	async_job "prompt_pure" prompt_pure_async_gcloud_config_info ""
 
 	# # only perform tasks inside git working tree
 	[[ -n $prompt_pure_vcs_info[top] ]] || return
@@ -380,12 +387,41 @@ prompt_pure_check_git_arrows() {
 	typeset -g REPLY=$arrows
 }
 
+prompt_pure_async_gcloud_config_info() {
+	[ $commands[gcloud] ] || return
+	setopt localoptions extendedglob
+	local __line __s __k __v account project cluster
+	while IFS= read -r -t 1 __line; do
+		case "$__line" in
+			"["*"]")
+				__s=${__line:1:${#__line}-2}
+				;;
+			*" = "*)
+				__k=${__line%% = *}
+				__v=${__line##* = }
+				[ "$__s.$__k" = "core.account" ] && account=$__v
+				[ "$__s.$__k" = "core.project" ] && project=$__v
+				[ "$__s.$__k" = "container.cluster" ] && cluster=$__v
+			;;
+		esac
+	done < <(gcloud config list 2>/dev/null; echo)
+	project=${project:+:${project}}
+	cluster=${cluster:+ cluster:${cluster}}
+	local logo="%F{$PROMPT_PURE_GCLOUD_SYMBOL_COLOR}$PROMPT_PURE_GCLOUD_SYMBOL%f"
+	printf "(%s %s%s%s)" $logo $account $project $cluster
+}
+
 prompt_pure_async_callback() {
 	setopt localoptions noshwordsplit
 	local job=$1 code=$2 output=$3 exec_time=$4 next_pending=$6
 	local do_render=0
 
 	case $job in
+		prompt_pure_async_gcloud_config_info)
+			typeset -g prompt_pure_gcloud_config_info
+			prompt_pure_gcloud_config_info=$output
+			prompt_pure_preprompt_render
+			;;
 		prompt_pure_async_vcs_info)
 			local -A info
 			typeset -gA prompt_pure_vcs_info
