@@ -25,6 +25,8 @@
 
 PROMPT_PURE_GCLOUD_SYMBOL=${PROMPT_PURE_GCLOUD_SYMBOL="G‧☁ "}
 PROMPT_PURE_GCLOUD_SYMBOL_COLOR=${PROMPT_PURE_GCLOUD_SYMBOL_COLOR="blue"}
+PROMPT_PURE_KUBECTL_SYMBOL=${PROMPT_PURE_KUBECTL_SYMBOL="⎈ "}
+PROMPT_PURE_KUBECTL_SYMBOL_COLOR=${PROMPT_PURE_KUBECTL_SYMBOL_COLOR="blue"}
 
 
 # turns seconds into human readable time
@@ -146,6 +148,8 @@ prompt_pure_preprompt_render() {
 
 	# append gcloud config info
 	[[ -n $prompt_pure_gcloud_config_info ]] && preprompt_parts+=('$prompt_pure_gcloud_config_info')
+	# append kubectl info
+	[[ -n $prompt_pure_kubectl_info ]] && preprompt_parts+=('$prompt_pure_kubectl_info')
 
 	# Construct the new prompt with a clean preprompt.
 	local -ah ps1
@@ -342,6 +346,7 @@ prompt_pure_async_tasks() {
 
 	async_job "prompt_pure" prompt_pure_async_vcs_info
 	async_job "prompt_pure" prompt_pure_async_gcloud_config_info ""
+	async_job "prompt_pure" prompt_pure_async_kubectl_info ""
 
 	# # only perform tasks inside git working tree
 	[[ -n $prompt_pure_vcs_info[top] ]] || return
@@ -411,6 +416,12 @@ prompt_pure_async_gcloud_config_info() {
 	printf "(%s %s%s%s)" $logo $account $project $cluster
 }
 
+prompt_pure_async_kubectl_info() {
+	[ $commands[kubectl] ] || return
+	local logo="%F{$PROMPT_PURE_KUBECTL_SYMBOL_COLOR}$PROMPT_PURE_KUBECTL_SYMBOL%f"
+	printf "(%s %s)" $logo $(kubectl config current-context 2>/dev/null | sed 's/gke_\(.*\)-c_\(.*\)$/gke:\2/')
+}
+
 prompt_pure_async_callback() {
 	setopt localoptions noshwordsplit
 	local job=$1 code=$2 output=$3 exec_time=$4 next_pending=$6
@@ -420,6 +431,11 @@ prompt_pure_async_callback() {
 		prompt_pure_async_gcloud_config_info)
 			typeset -g prompt_pure_gcloud_config_info
 			prompt_pure_gcloud_config_info=$output
+			prompt_pure_preprompt_render
+			;;
+		prompt_pure_async_kubectl_info)
+			typeset -g prompt_pure_kubectl_info
+			prompt_pure_kubectl_info=$output
 			prompt_pure_preprompt_render
 			;;
 		prompt_pure_async_vcs_info)
